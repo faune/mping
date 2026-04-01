@@ -1,16 +1,16 @@
 BUGS / TODO (historical list from UNINETT; many items addressed in this tree)
 
 Addressed in current source:
-- IPv6 hop limit / “TTL” on receive: use IPV6_RECVHOPLIMIT + recvmsg ancillary data (IPV6_HOPLIMIT cmsg); print as `hops=N` like IPv4 `ttl=`.
-- Kernel timestamps (-k): SO_TIMESTAMP + recvmsg SCM_TIMESTAMP used for receive-side time when computing RTT (with -k).
-- Long-run DNS failures: hosts that fail getaddrinfo at startup stay in the list; resolution is retried every RESOLVE_RETRY_SEC (30s) when their turn comes in the round-robin. PING line shows “DNS unresolved, will retry”. Main loop sleeps if no raw sockets exist yet.
-- stdin hostname vs DNS: PING line shows `PING <stdin> [canonical]: … to <addr>` when ai_canonname is present; hostnameresolv[] holds canonical name.
-- Duplicate replies: dupcheck() keyed by (host_index << 16) | seq; prints “(DUP!)” and skips updating stats.
-- pr_pack6: hnum bounds check uses `>= nhosts` (was `> nhosts`).
+- IPv6 hop limit / "TTL" on receive: IPV6_RECVHOPLIMIT + recvmsg (IPV6_HOPLIMIT cmsg); print as hops=N like IPv4 ttl=.
+- Kernel timestamps (-k): SO_TIMESTAMP + recvmsg SCM_TIMESTAMP for receive-side RTT when -k is set.
+- Long-run DNS failures: retry getaddrinfo every RESOLVE_RETRY_SEC (30s); main loop sleeps if no raw sockets yet.
+- stdin hostname vs DNS: PING line shows user label, optional canonical name, and resolved addr.
+- Duplicate replies: mod-100 dupcheck was removed (false duplicate drops / inflated loss); loss uses nsent[] vs nreceived[].
+- pr_pack6: hnum bounds use >= nhosts (was > nhosts).
 
 Still open / optional:
 - Further polish of display format for resolved vs user-supplied names.
 - Packed output mode could include IPv6 hop count for parity with IPv4 ttl field.
-- Per-host dupcheck ring size is fixed at 100 (tunable constant).
+- Optional: safe duplicate detection (e.g. per-host last-sequence map without mod-100 aliasing).
 
-See Changelog / git history for portability work (Linux, macOS, Makefile, README).
+See CHANGELOG.md / git history for portability work (Linux, macOS, Makefile, README).

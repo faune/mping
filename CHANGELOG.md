@@ -100,8 +100,10 @@ Mping v3.0 rc1
 
 - **DNS retry**: hosts that fail **`getaddrinfo`** at startup stay in the list; **periodic retry** (default **30 s**) on round-robin turns; message **“DNS unresolved, will retry”**; main loop **sleeps** if no raw sockets exist yet (all hosts pending).
 - **`hostnameresolv`**: stores **`ai_canonname`** when present; PING line shows **`stdin [canonical]: … to <addr>`**.
-- **Duplicate ICMP replies**: **`dupcheck()`** keyed by host index and sequence; prints **`(DUP!)`** and skips stat updates.
+- **Duplicate ICMP replies**: an earlier **`dupcheck()`** (mod-100 hash) was **removed** — it collided across different `(host, seq)` pairs and could mark **legitimate** replies as duplicates, inflating **packet loss**. True duplicates are uncommon for this tool’s use case.
 - **`pr_pack6`**: host index bounds use **`hnum >= nhosts`** (inclusive upper bound fix).
+- **Per-host `nsent[]`**: statistics use **actual successful `sendto` count** per host for **loss %** (not `ntransmitted` alone). Summary line clarifies **poll rounds** vs **sent** counts.
+- **`ntransmitted--` on `EAGAIN`**: **removed** — it decremented the **round** counter and corrupted **ICMP sequence** and loss math.
 
 ### Security hardening
 
