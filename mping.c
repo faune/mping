@@ -63,7 +63,7 @@ char hnamebuf[MPING_HOST_LABEL_LEN];
 
 int nhosts = 0;                         /* number of hosts on command line */
 int npackets;                           /* number of packets to send to each host. */
-int wtime = 2;                          /* time (ms) to wait after last packet sent */
+int wtime = 2;                          /* seconds after last send before finish (see alarm(3)) */
 int deadline = 0;                       /* timeout in seconds before mping exits regardless of packets sent */
 int preload = 0;                        /* number of packets to "preload" */
 int ntransmitted=0;                     /* sequence # for outbound packets = #sent */
@@ -109,8 +109,11 @@ static int copy_hostname_slot(int slot, const char *src);
 /* Usage string printed at program call with no argument specified */
 char usage[] =
 "\n"
-"Usage:\t  mping  [-rln46ktTqvSmfV] [-c count] [-i interval] [-s packetsize] [-w deadline]\n"
+"Usage:\t  mping  [-hrln46ktTqvSmfV] [-c count] [-i interval] [-s packetsize] [-w deadline]\n"
 "\t\t [-W waittime] [-e ttl] [-p/-P -a mean -b truncated] [-F hostfile] host1 host2...\n"
+"\n"
+"General:\n"
+"  -h\t\t Print this help and exit.\n"
 "\n"
 "Packet options: \n"
 "  -r\t\t No routing.\n"
@@ -122,8 +125,10 @@ char usage[] =
 "DNS options:\n"
 "  -n\t\t Numeric output only. No attempt will be made to\n"
 "\t\t lookup symbolic names for host addresses.\n"
-"  -4\t\t Prefer IPv4 adress on multiple DNS hits.\n"
-"  -6\t\t Prefer IPv6 adress on multiple DNS hits.\n"
+"  -4\t\t Resolve names to IPv4 only.\n"
+"  -6\t\t Resolve names to IPv6 only.\n"
+"  \t\t Default (no -4/-6): use first IPv4 if resolver returns any,\n"
+"  \t\t else first address (often IPv6). Matches many ping(8) setups.\n"
 "\n"
 "Timing options:\n"
 "  -k\t\t Let the kernel timestamp packets.\n"
@@ -131,7 +136,7 @@ char usage[] =
 "  -T\t\t Timestamp each packet sent.\n"
 "  -i interval\t msec between each packet sent (default is 100).\n"
 "  -w deadline\t Specify a timeout, in seconds, before Mping exits.\n"
-"  -W waittime\t Time to wait for stray packets after last sent.\n"
+"  -W waittime\t Seconds to wait for stray packets after last sent (see alarm(3)).\n"
 "  -e ttl\t Set the IP Time To Live for outgoing packets.\n"
 "\n"
 "Statistics and information:\n"
@@ -186,8 +191,12 @@ int main(int argc, char **argv)
 	
 	/* Determine which options are set at command line, and set neccesary flags */
 	//while ((ch = getopt(argc, argv, "i:rvqSpPa:b:nmflktTe:c:w:W:s:V46F:")) != EOF) {
-	while ((ch = getopt(argc, argv, "rc:s:ln46ktTi:w:W:e:qvSpPa:b:mfVF:")) != EOF) {
+	while ((ch = getopt(argc, argv, "hrc:s:ln46ktTi:w:W:e:qvSpPa:b:mfVF:")) != EOF) {
 		switch(ch) {
+		case 'h':
+			fputs(usage, stdout);
+			exit(0);
+
 			/* Packet options */
 		case 'r':
 			options |= F_SO_DONTROUTE;
@@ -322,8 +331,12 @@ int main(int argc, char **argv)
 				fprintf(stderr, "Mping: File not found.\n");
 			}
 			break;
+		case '?':
+			/* getopt(3) already printed the illegal option on stderr */
+			exit(2);
 		default:
-			fputs(usage, stdout);
+			fprintf(stderr, "Mping: unexpected getopt return %d\n", ch);
+			exit(2);
 		}
 	}
 	argc -= optind;

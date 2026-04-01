@@ -4,7 +4,7 @@ mping \- send ICMP ECHO_REQUEST to multiple IPv4/IPv6 network hosts in a Round-R
 
 
 .SH SYNOPSIS
-\fBmping\fR  [ \fB-rln46ktTqvSmfV\fR] [ \fB-c \fIcount\fB\fR] [ \fB-i \fIinterval\fB\fR] [ \fB-s \fIpacketsize\fB\fR]
+\fBmping\fR  [ \fB-hrln46ktTqvSmfV\fR] [ \fB-c \fIcount\fB\fR] [ \fB-i \fIinterval\fB\fR] [ \fB-s \fIpacketsize\fB\fR]
 [ \fB-w \fIdeadline\fB\fR] [ \fB-W \fIwaittime\fB\fR] [ \fB-e \fIttl\fB\fR] [ \fB-F \fIhostfile\fB\fR]
 [ \fB-p/-P \fB-a \fImean\fB\fR \fB-b \fItruncated\fB\fR]
 .I host1 host2 ... host500
@@ -68,6 +68,9 @@ support up to 500 network hosts, and both IPv4 and IPv6 addresses and/or hostnam
 
 
 .SH OPTIONS
+.TP
+.B \-h
+Print usage text and exit successfully.
 .TP
 Packet options
 .TP
