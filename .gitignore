@@ -1,0 +1,12 @@
+# build artifact
+/mping
+*.o
+a.out
+
+# editor / OS
+*~
+*.swp
+.DS_Store
+
+# local debugger
+.gdb_history

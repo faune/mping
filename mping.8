@@ -1,0 +1,438 @@
+.TH MPING 8 "16. September 2005" "Version 3.0" "UNINETT A/S: Mping"
+.SH NAME
+mping \- send ICMP ECHO_REQUEST to multiple IPv4/IPv6 network hosts in a Round-Robin fashion. 
+
+
+.SH SYNOPSIS
+\fBmping\fR  [ \fB-rln46ktTqvSmfV\fR] [ \fB-c \fIcount\fB\fR] [ \fB-i \fIinterval\fB\fR] [ \fB-s \fIpacketsize\fB\fR]
+[ \fB-w \fIdeadline\fB\fR] [ \fB-W \fIwaittime\fB\fR] [ \fB-e \fIttl\fB\fR] [ \fB-F \fIhostfile\fB\fR]
+[ \fB-p/-P \fB-a \fImean\fB\fR \fB-b \fItruncated\fB\fR]
+.I host1 host2 ... host500
+
+
+.SH DESCRIPTION
+The DARPA Internet is a large and complex aggregation of network hardware, connected together by gateways. Tracking a
+single-point hardware or software failure can often be difficult.
+
+.I Mping
+utilizes the ICMP protocol's mandatory ECHO_REQUEST datagram to elicit an ICMP ECHO_RESPONSE from hosts and gateways.
+ECHO_REQUEST datagrams (``pings'') have an IP and ICMP header, followed by a \fBstruct timeval\fR, and then an arbitrary
+number of ``pad'' bytes used to fill out the packet. Default datagram length is 64 bytes, but this can be changed using
+the command-line option.
+
+The IPPM metrics defined for
+.I mping
+is Type-ICMP Round-trip delay and Type-ICMP Two-way packet loss. See section RESOURCES
+for more information.
+.PP
+
+.IR Mping
+sends by default ten datagrams per second, and prints one line of output for every ECHO_RESPONSE returned. No output is
+produced if there is no response. The
+.I interval
+between each datagram sent can be adjusted. If an optional
+.I count
+is given, only that number of requests are sent to each host.
+
+The round-trip times (RTT) and packet loss statistics are computed for each host when the program time out (with a
+.I count
+or
+.I deadline
+specified), or if the program is terminated with a SIGINT.
+
+
+The following statistics can be presented using various options:
+.TP 0.2i
+\(bu
+Minimum RTT (by default)
+.TP 0.2i
+\(bu
+Average RTT (by default)
+.TP 0.2i
+\(bu
+Maximum RTT (by default)
+.TP 0.2i
+\(bu
+Standard Deviation RTT (by default)
+.TP 0.2i
+\(bu
+Median RTT
+.TP 0.2i
+\(bu
+10/50(median)/90 Percentile RTT
+
+
+.TP
+.I Mping
+support up to 500 network hosts, and both IPv4 and IPv6 addresses and/or hostnames can be used at the same time.
+
+
+.SH OPTIONS
+.TP
+Packet options
+.TP
+.B \-r
+Bypass the normal routing tables and send directly to a host on an attached network. If the host is not
+on a directly-attached network, an error is returned. This option can be used to ping a local host through
+an interface that has no route through it (e.g., after the interface was dropped by
+.IR routed (8C)).
+
+.TP
+.B \-c count
+Stop after sending
+.I count
+ECHO_REQUEST packets. If
+.I deadline
+option is set, ping does not wait for
+.I count
+ECHO_REPLY packets before the timeout expires. After
+.I count
+expires,
+.I mping
+will terminate and print out statistics.
+
+.TP
+.B \-s packetsize
+Specifies  the  number of data bytes to be sent.  The default is 56, which translates into 64 ICMP data bytes when
+combined with the 8 bytes of ICMP header data.
+
+.TP
+.B \-l
+Pre-fire 1 packet to each host before starting to collect statistics. Since most active ping meassurements will have
+an unnaturally high first RTT value, this options can prevent influence from ARP-cache issues for example.
+
+.TP
+DNS options
+.TP
+.B \-n
+Numeric output only.  No attempt will be made to lookup symbolic names for host addresses. Without this option,
+.I mping
+will try to look up host addresses and/or host names given as input, and translate them to a standardized hostname(address) format.
+.TP
+.B \-4
+Prefer IPv4 addresses when resolving. If no match is found,
+.I mping
+will try IPv6 instead.
+.TP
+.B \-6
+Prefer IPv6 addresses when resolving. If no match is found,
+.I mping
+will try IPv4 instead.
+
+.TP
+Timing options
+.TP
+.B \-k
+Let the kernel timestamp packets, instead of doing it on the application layer. The kernel is able to timestamp packets more precisely
+when they leave and enter the network stack, and this can and should produce more accurate statistics. When -k is used,
+.I mping
+meassure the wiretime of a packet. The
+.I wiretime
+for
+.I mping
+, is defined as the time from when the first bit enters the wireline at the meassurement
+point, to the time when the last bit leaves the wireline at the same meassurement point.
+
+If the -k option is not used,
+.I mping
+will timestamp packets on the application layer. This means
+.I mping
+is in reality meassuring the "wiretime + processing time".
+.TP
+.B \-t
+Timestamp each burst sent. Each time a new Round-Robin run-through (burst) is initiated, a timestamp will be printed out. This enable
+easier post-processing of the results
+.I mping
+produce, for example the ability to plot each burst sent. Option -t and -T are conflicting.
+.TP
+.B \-T
+Timestamp each packet sent. Each time a new packet is initiated, a timestamp will be printed out. This enable
+easier post-processing of the results
+.I mping
+produce, for example the ability to plot each packet sent. Option -T and -t are conflicting.
+.TP
+.B \-i interval
+Wait
+.I interval
+msecs between sending each packet. The default is to wait for 100 msecs between each packet, which translate to 10 packets
+per second by default. Interval can be set low to initiate a flood-ping. Use with caution!
+.TP
+.B \-w deadline
+Specify a timeout, in seconds, before
+.I mping
+exits regardless of how many packets have been sent or received. If
+.I count
+option is set,
+.I mping
+does not wait for
+.I count
+ECHO_REPLY packets before the timeout expires. After
+.I deadline
+expires,
+.I mping
+will terminate and print out statistics. Note that
+.I mping
+does not terminate a burst while it is processing, as this
+can lead to artificial packet loss. If a deadline is not reached, another burst with up to 500 hosts can be initiated, including
+poisson sleep intervals, even if this means
+.I mping
+will exceed the
+.I deadline.
+This is different from how normal ping
+.I deadline
+works, however it is neccessary for
+.I mping
+, due to its multihost-support - else artificial packet loss can be introduced.
+.TP
+.B \-W 
+Wait
+.I waittime
+seconds after last packet is sent before printing out statistics, in order to capture possible stray packets. The default is 2 seconds.
+.TP
+.B \-e ttl
+Set the IP Time To Live for outgoing packets.
+
+.TP
+Statistics and information
+.TP
+.B \-q
+Quiet output.  Nothing is displayed except the summary line on termination.
+.TP
+.B \-v
+Verbose output.  ICMP packets other than ECHO RESPONSE that are received
+are listed, along with various other verbose information depending on the options set.
+.TP
+.B \-S
+Show statistics in shorter style. Redundant text is removed. Useful if capturing the
+.I mping
+output to file for post-processing.
+.TP
+.B \-p
+Poisson distribute each burst sent. Must be used together with the -a
+.I mean
+and -b
+.I truncated
+option. Option -p and -P are conflicting.
+.TP
+.B \-P
+Poisson distribute each packet sent. Must be used together with the -a
+.I mean
+option and -b
+.I truncated
+option. Option -P and -p are conflicting.
+.TP
+.B \-a mean
+Set the desired
+.I mean
+value for the number drawn from the Poisson distribution.
+.TP
+.B \-b truncated
+Set the desired
+.I truncated
+value for the Poisson distribution. The truncated value represent the maximum number allowed to be drawn.
+.TP
+.B \-m
+Print out min/avg/max/stddev/median instead of min/avg/max/stddev for every host when presenting statistics.
+.TP
+.B \-f
+Print out 10/50(median)/90-percentile/stddev instead of min/avg/max/stddev for every host when presenting statistics.
+.TP
+.B \-V
+Show version information and exit.
+
+.TP
+Host options
+.TP
+.B \-F hostfile
+Read a list of hosts from file
+.I hostfile.
+The format of this file can be any valid IPv4 or IPv6 address or hostname.
+
+The format of
+.I hostfile
+is any valid IPv4 or IPv6 address or hostname, one entry per line and up to a maximum of 500 entires in total. The -F
+.I hostname
+option can also be combined with hostnames or host addresses on stdin.
+
+
+.SH EXAMPLES
+The following is an example how an
+.I mping
+entry can be added to crontab, in order to perform Type-ICMP Round-trip delay and Type-ICMP Two-way packet loss metric meassurements:
+
+mping -p -t -w3600 -p -a60 -b300 -F hostfile >> /path/to/mpingdata.$(date +%y%m%d)
+
+The -p option prevent
+.I mping
+from printing out any redundant information, while the -t options will timestamp the beginning of
+each burst. The
+.I deadline
+(-w3600) option specify that
+.I mping
+will only process for 1 hour (3600 seconds). We also Poisson-distribute each burst with option -p, and
+specify that the 
+.I mean
+value (-a60) drawn from the distribution should be 60 seconds, while we dont want any number drawn that exceeds 300 seconds (-b300).
+The hosts are provided through the -F
+.I hostfile
+option, and the results are finally piped to a datafile with todays timestamp in format date +%y%m%d.
+
+Note that the formating options and the statistics presented by
+.I mping
+is very flexible, in order to make it more adaptable for
+various deployment.
+
+
+
+.SH RESOURCES
+.I Mping
+follows the design guidelines presented in the IP Performance Metrics (IPPM) framework, respectively:
+.TP 0.2i
+\(bu
+RFC2330 Framework for IP Performance Metrics
+.TP 0.2i
+\(bu
+RFC2681 A Round-trip Delay Metrics for IPPM
+
+.TP
+This program is intended for use in network testing, measurement and management.
+
+
+.SH "ICMP PACKET DETAILS"
+.PP
+An IP header without options is 20 bytes.
+An ICMP ECHO_REQUEST packet contains an additional 8 bytes worth
+of ICMP header followed by an arbitrary amount of data.
+When a \fIpacketsize\fR is given, this indicated the size of this
+extra piece of data (the default is 56). Thus the amount of data received
+inside of an IP packet of type ICMP ECHO_REPLY will always be 8 bytes
+more than the requested data space (the ICMP header).
+.PP
+If the data space is at least of size of struct timeval
+.I mping
+uses the beginning bytes of this space to include
+a timestamp which it uses in the computation of round trip times.
+If the data space is shorter, no round trip times are given.
+
+.SH "DUPLICATE AND DAMAGED PACKETS"
+.PP
+.I Mping
+will report duplicate and damaged packets.
+Duplicate packets should never occur, and seem to be caused by
+inappropriate link-level retransmissions.
+Duplicates may occur in many situations and are rarely (if ever) a
+good sign, although the presence of low levels of duplicates may not
+always be cause for alarm.
+.PP
+Damaged packets are obviously serious cause for alarm and often
+indicate broken hardware somewhere in the
+.I mping
+packet's path (in the network or in the hosts).
+
+
+.SH "TTL DETAILS"
+.PP
+The TTL value of an IP packet represents the maximum number of IP routers
+that the packet can go through before being thrown away.
+In current practice you can expect each router in the Internet to decrement
+the TTL field by exactly one.
+.PP
+The TCP/IP specification states that the TTL field for TCP
+packets should be set to 60, but many systems use smaller values
+.PP
+The maximum possible value of this field is 255, and most Unix systems set
+the TTL field of ICMP ECHO_REQUEST packets to 255.
+This is why you will find you can ``ping'' some hosts, but not reach them
+with
+\fBtelnet\fR(1)
+or
+\fBftp\fR(1).
+.PP
+In normal operation
+.I mping
+prints the ttl value from the packet it receives.
+When a remote system receives a ping packet, it can do one of three things
+with the TTL field in its response:
+.TP 0.2i
+\(bu
+Not change it; this is what Berkeley Unix systems did before the
+4.3BSD Tahoe release. In this case the TTL value in the received packet
+will be 255 minus the number of routers in the round-trip path.
+.TP 0.2i
+\(bu
+Set it to 255; this is what current Berkeley Unix systems do.
+In this case the TTL value in the received packet will be 255 minus the
+number of routers in the path \fBfrom\fR
+the remote system \fBto\fR the \fBmping\fRing host.
+.TP 0.2i
+\(bu
+Set it to some other value. Some machines use the same value for
+ICMP packets that they use for TCP packets, for example either 30 or 60.
+Others may use completely wild values.
+
+
+
+.SH SECURITY CONSIDERATIONS
+.I Mping
+should be used with care not to overload the network or the host it's running on. Be sure to select
+sensible packet payloads and intervals, and try to prevent DoS-like behaviour.
+
+Flood pinging is not recommended in general, and should only be done under very controlled conditions.
+
+This program is intended for use in network testing, measurement and management.
+
+
+.SH BUGS
+If using 
+.I mping 
+on an IPv6 network, you will need a kernel which support automatic packet 
+checksum generation for IPv6. For GNU/Linux this means a fairly new kernel 
+is needed, namely >= 2.4.19.
+.PP
+.I Mping
+need to be setuid and owned by root to be executed by unpriviledged users.
+Please consider the security issues involved if you decide to do this.
+.PP
+The program is developed under GNU/Linux, and tested to work on both little-endian and big-endian systems, including
+GNU/Linux, NetBSD, FreeBSD and Darwin 8.1.X (Mac OSX Tiger).
+.I Mping
+will probably work on most *NIX platforms, but feedback is appreciated.
+
+
+
+
+.SH HISTORY AND AUTHORS
+Mping-1.0 originally written by Vegard Engen for UNINETT in 1996, based heavily on
+.I ping(8)
+by Mike Muus. Mping-1.0 was developed on SunOS.
+.PP
+Mping-1.3 was a bugfix version written by Frank Aune for UNINETT in 2002. Mping-1.3 was
+developed on GNU/Linux and designed to run on NetBSD.
+.PP
+Mping-2.0 was a rewrite of Mping-1.0 and Mping-1.3 and was written by
+Frank Aune and Stig Venaas for UNINETT in 2003. Mping-2.0 was based on 
+.I ping(8) 
+and 
+.I ping6(8) 
+from the UNIX iputils package and BSD-ping. Mping-2.X is developed and designed to run on any *NIX plattform, and
+currently tested on the following platforms:
+.TP 0.2i
+\(bu
+GNU/Linux 2.4.X/2.6.X
+.TP 0.2i
+\(bu
+NetBSD 1.X / FreeBSD 4.X
+.TP 0.2i
+\(bu
+Darwin 8.1.X (Mac OSX Tiger)
+
+
+.SH SEE ALSO
+ping(8),
+ping6(8),
+netstat(1),
+ifconfig(8C)
+
+
+.SH AVAILABILITY
+Mping is available from http://software.uninett.no.
