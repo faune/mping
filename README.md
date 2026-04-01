@@ -55,7 +55,7 @@ sudo make uninstall
 Full detail is in **`mping.8`** (`man ./mping.8` from the source tree, or `man mping` after install).
 
 ```text
-mping [-rln46ktTqvSmfV] [-c count] [-i interval] [-s packetsize] [-w deadline]
+mping [-hrln46ktTqvSmfV] [-c count] [-i interval] [-s packetsize] [-w deadline]
       [-W waittime] [-e ttl] [-p|-P -a mean -b truncated] [-F hostfile] host1 host2 ...
 ```
 
@@ -68,24 +68,40 @@ sudo ./mping -c 5 example.com 127.0.0.1 ::1
 # Host list from file, numeric output only, 200 ms between sends
 sudo ./mping -n -i 200 -F hosts.txt
 
-# Prefer IPv6, quiet, with deadline
+# IPv6 only, quiet, with deadline
 sudo ./mping -6 -q -w 30 host1 host2
+
+# Help
+./mping -h
 ```
 
 Notable options (see the man page for the full list):
 
 | Option | Meaning |
 |--------|---------|
+| `-h` | Print usage and exit |
 | `-c count` | Stop after *count* echo requests **per host** |
 | `-i msec` | Milliseconds between packets (default 100) |
 | `-w sec` | Wall-clock deadline before exit |
-| `-W msec` | Wait for stray replies after the last send |
+| `-W sec` | Seconds to wait for stray replies after the last send (`alarm(3)`; see man page) |
 | `-n` | Numeric addresses only (no reverse DNS) |
-| `-4` / `-6` | Prefer IPv4 or IPv6 when resolving names |
+| `-4` / `-6` | Use **only** IPv4 or **only** IPv6 when resolving. With neither, if both exist, the **first IPv4** result is used (often closer to plain `ping` on dual-stack names such as `.local`). |
 | `-F file` | Read hostnames/addresses from file (lines, `#` comments ok) |
 | `-m` / `-f` | Median or percentile-style RTT summaries |
 | `-q` / `-v` | Quiet or verbose |
 | `-V` | Print version and exit |
+
+## Behaviour (high level)
+
+This tree includes fixes beyond the original UNINETT 3.0 rc1 tarball: for example **IPv6 hop limit** and **IPv4 TTL** on receive (via `recvmsg` control messages), **kernel timestamps** when `-k` is set, **retry of failed `getaddrinfo`** for hosts that start unresolved, **non-blocking raw sockets** with receive **draining** after `select`, **per-host send counts** for loss statistics, and **IPv6 echo payload layout** aligned with IPv4 when timing is enabled. **CHANGELOG.md** has the full list.
+
+## Optional / future work
+
+Ideas not implemented here; contributions welcome:
+
+- Clearer display when **user-supplied names**, **canonical names**, and **resolved addresses** differ.
+- **Packed output** (`-S`) could include **IPv6 hop count** for parity with the IPv4 TTL field.
+- **Safe duplicate reply detection** (e.g. per-host sequence tracking) without the old mod-100 hash that could mis-classify distinct replies.
 
 ## Project layout
 
@@ -95,7 +111,8 @@ Notable options (see the man page for the full list):
 | `mping.h` | Headers and constants |
 | `mping.8` | Manual page |
 | `Makefile` | Build and install |
-| `Changelog`, `TODO` | Historical project notes |
+| `CHANGELOG.md` | Notable changes in this tree |
+| `Changelog` | Original upstream release notes (Norwegian) |
 
 ## License
 

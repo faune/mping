@@ -96,7 +96,7 @@ Mping v3.0 rc1
 - **Send buffers**: single **heap** `outpack` buffer instead of three huge static arrays (smaller **.bss**).
 - **`tvsub`**: ANSI prototype; **`fputs`** for usage/version strings; sign-compare casts; **`finish`**: **`freeaddrinfo(res)`** only if **`res != NULL`**.
 
-### TODO / behavior (from original `TODO`)
+### Behaviour notes (statistics, DNS, duplicates)
 
 - **DNS retry**: hosts that fail **`getaddrinfo`** at startup stay in the list; **periodic retry** (default **30 s**) on round-robin turns; message **“DNS unresolved, will retry”**; main loop **sleeps** if no raw sockets exist yet (all hosts pending).
 - **`hostnameresolv`**: stores **`ai_canonname`** when present; PING line shows **`stdin [canonical]: … to <addr>`**.
@@ -123,4 +123,4 @@ Mping v3.0 rc1
 
 - Original copyright and license: **GPLv2+** (see **`mping.c`** / **`mping.h`**).
 - Original Norwegian **`Changelog`** file retained; its entries are summarized in English under **Mping v3.0 rc1 — upstream release** above.
-- Original **`TODO`** remains in tree; items completed in this fork are noted in **`TODO`** and here.
+- Optional enhancements and historical behaviour notes are summarized in **`README.md`**.
