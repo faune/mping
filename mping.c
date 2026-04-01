@@ -75,6 +75,7 @@ int ident;
 int ttl;
 
 long nreceived[MAXHOSTS];               /* # of packets we got back */
+long nsent[MAXHOSTS];                    /* successful echo requests per host (for loss %) */
 int nactive = 0;                        /* Number of hosts that we're still pinging. */
 int active[MAXHOSTS];                   /* Array of flags */
 int timing = 0;
@@ -97,7 +98,6 @@ int alloc_count;                        /* Number of packets we allocate space f
 static int pending_resolve[MAXHOSTS];
 static time_t resolve_next_try[MAXHOSTS];
 
-static int dupcheck(unsigned int s);
 static int apply_addrinfo_to_slot(int slot, struct addrinfo *rai);
 static void try_resolve_host(int slot);
 static ssize_t recv_raw_icmp(int fd, int is_v6, unsigned char *buf, size_t buflen,
@@ -682,26 +682,6 @@ copy_hostname_slot(int slot, const char *src)
 
 #define CTRL_CMSG_BUFSIZ 256
 
-static int
-dupcheck(unsigned int s)
-{
-	static int first = 1;
-	static unsigned int recent[100];
-	int i = (int)(s % 100U);
-
-	if (first) {
-		first = 0;
-		memset(recent, 0, sizeof(recent));
-		recent[0] = 1U;
-	}
-
-	if (recent[i] == s)
-		return 1;
-
-	recent[i] = s;
-	return 0;
-}
-
 static ssize_t
 recv_raw_icmp(int fd, int is_v6, unsigned char *buf, size_t buflen,
     struct sockaddr_storage *from, socklen_t *fromlen, int *ttlorhop,
@@ -1137,16 +1117,14 @@ pinger(int hostnum)
 
 		if (i < 0 || i != cc)  {
 			if (i < 0) {
-				if (errno == EAGAIN) {
-					ntransmitted--;
-				} else {
+				if (errno != EAGAIN)
 					perror("Mping: sendto");
-				}
 			} else {
 				printf("Mping: wrote %s %d chars, ret=%d\n",
 				       pr_addr(&whereto[hostnum]), cc, i);
 			}
-		}
+		} else
+			nsent[hostnum]++;
         }
 }
 
@@ -1195,16 +1173,14 @@ pinger6(int hostnum)
 
         if (i < 0 || i != cc)  {
                 if (i < 0) {
-                        if (errno == EAGAIN) {
-                                ntransmitted--;
-                        } else {
+                        if (errno != EAGAIN)
                                 perror("Mping: sendto");
-                        }
                 } else {
                         printf("Mping: wrote %s %d chars, ret=%d\n",
                                pr_addr(&whereto[hostnum]), cc, i);
 		}
-	}
+	} else
+		nsent[hostnum]++;
 }
 
 
@@ -1266,20 +1242,11 @@ pr_pack(u_char *buf, int cc, struct sockaddr_in *from, int ttl_cmsg,
 			return;         /* This was not our ICMP ECHO reply */
 		}
                 hnum = (int *) &buf[hlen + 8];
-                if (*hnum < 0 || *hnum >= nhosts) {
+		if (*hnum < 0 || *hnum >= nhosts) {
                         if (options & F_VERBOSE)
 				fprintf(stderr, "Mping: bad host slot %d (nhosts=%d)\n", *hnum, nhosts);
                         return;
                 }
-		{
-			unsigned dupkey = ((unsigned)*hnum << 16) | (unsigned)(icp->icmp_seq & 0xffffu);
-			if (dupcheck(dupkey)) {
-				if (!(options & F_QUIET) && !(options & F_PACKED))
-					printf("%d bytes from %s icmp_seq=%d (DUP!)\n", cc,
-					       pr_addr(from), icp->icmp_seq);
-				return;
-			}
-		}
                 if ((++nreceived[*hnum] >= npackets) && npackets) {
                         nactive--;
                         active[*hnum] = 0;
@@ -1396,15 +1363,6 @@ pr_pack6(u_char *buf, int cc, struct sockaddr_in6 *from, int hops,
                         printf("hnum=%d, outside [0..%d)\n", hnum, nhosts);
                         return;
                 }
-		{
-			unsigned dupkey = ((unsigned)hnum << 16) | (unsigned)(icmph->icmp6_seq & 0xffffu);
-			if (dupcheck(dupkey)) {
-				if (!(options & F_QUIET) && !(options & F_PACKED))
-					printf("%d bytes from %s icmp_seq=%u (DUP!)\n", cc,
-					       pr_addr(from), icmph->icmp6_seq);
-				return;
-			}
-		}
 
 		if ((++nreceived[hnum] >= npackets) && npackets) {
 			nactive--;
@@ -1604,33 +1562,35 @@ finish(int dummy)
         if (!(options & F_PACKED)){
                 printf("\n\n---- MPING Statistics----\n");
         }
-	printf("%i packets transmitted to each host\n", ntransmitted);
+	printf("%i poll rounds (one echo request per active host per round)\n", ntransmitted);
 	if (!(options & F_PACKED))
 		putchar('\n');
 	
 	for (i = 0; i < nhosts; i++) {
 		int nrecorded = MIN (nreceived[i], MAXCOUNT);
+		long sent = nsent[i];
 		
 		if((options & F_MEDIAN) || (options & F_PERCENTILE)){
 			qsort(packet_time[i], nrecorded, sizeof(int), compare);
                 }
 
 		if (!(options & F_PACKED))
-			printf("%s: %ld packets received, ", pr_addr(&whereto[i]), nreceived[i]);
+			printf("%s: %ld packets received, %ld sent, ", pr_addr(&whereto[i]), nreceived[i], sent);
 		else
-			printf("%s %ld ", pr_addr(&whereto[i]), nreceived[i]);
+			printf("%s %ld %ld ", pr_addr(&whereto[i]), nreceived[i], sent);
 		
 
-		if (ntransmitted){
-                        if ((nreceived[i] > ntransmitted) && (options & F_VERBOSE)){
+		if (sent > 0){
+                        if ((nreceived[i] > sent) && (options & F_VERBOSE)){
 				printf("-- somebody's printing up packets!");
                         }else{
                                 if (!(options & F_PACKED)) {
                                         printf("%d%% packet loss",
-                                               (int) (((ntransmitted - nreceived[i]) * 100) / ntransmitted));
+                                               (int) (((sent - nreceived[i]) * 100) / sent));
                                 }
                         }
-                }
+                } else if (!(options & F_PACKED))
+			printf("0%% packet loss");
                 if (!(options & F_PACKED)){
                         printf("\n");
                 }
