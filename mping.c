@@ -98,6 +98,7 @@ int alloc_count;                        /* Number of packets we allocate space f
 static int pending_resolve[MAXHOSTS];
 static time_t resolve_next_try[MAXHOSTS];
 
+static struct addrinfo *addrinfo_prefer_v4(struct addrinfo *head);
 static int apply_addrinfo_to_slot(int slot, struct addrinfo *rai);
 static void try_resolve_host(int slot);
 static ssize_t recv_raw_icmp(int fd, int is_v6, unsigned char *buf, size_t buflen,
@@ -485,7 +486,7 @@ int main(int argc, char **argv)
 			af = AF_INET6;
 		
 
-		if (apply_addrinfo_to_slot(nhosts, res) != 0) {
+		if (apply_addrinfo_to_slot(nhosts, addrinfo_prefer_v4(res)) != 0) {
 			freeaddrinfo(res);
 			res = NULL;
 			exit(1);
@@ -752,6 +753,25 @@ set_nonblocking_socket(int fd)
 	return 0;
 }
 
+/*
+ * With AF_UNSPEC, getaddrinfo order is implementation-defined; macOS often
+ * lists IPv6 (e.g. fe80::) before IPv4. Plain ping often ends up on IPv4 for
+ * the same hostname — pick first IPv4 when present so behaviour matches.
+ */
+static struct addrinfo *
+addrinfo_prefer_v4(struct addrinfo *head)
+{
+	struct addrinfo *p;
+
+	if (head == NULL || af != AF_UNSPEC)
+		return head;
+	for (p = head; p != NULL; p = p->ai_next) {
+		if (p->ai_family == AF_INET)
+			return p;
+	}
+	return head;
+}
+
 static int
 apply_addrinfo_to_slot(int slot, struct addrinfo *rai)
 {
@@ -896,7 +916,7 @@ try_resolve_host(int slot)
 	if (trigger == 6)
 		af = AF_INET6;
 
-	if (apply_addrinfo_to_slot(slot, lres) != 0) {
+	if (apply_addrinfo_to_slot(slot, addrinfo_prefer_v4(lres)) != 0) {
 		freeaddrinfo(lres);
 		af = saved_af;
 		resolve_next_try[slot] = now + (time_t)RESOLVE_RETRY_SEC;

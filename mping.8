@@ -110,14 +110,26 @@ Numeric output only.  No attempt will be made to lookup symbolic names for host 
 will try to look up host addresses and/or host names given as input, and translate them to a standardized hostname(address) format.
 .TP
 .B \-4
-Prefer IPv4 addresses when resolving. If no match is found,
-.I mping
-will try IPv6 instead.
+Restrict name resolution to IPv4 only
+.RB ( AF_INET ).
 .TP
 .B \-6
-Prefer IPv6 addresses when resolving. If no match is found,
+Restrict name resolution to IPv6 only
+.RB ( AF_INET6 ).
+.PP
+With neither
+.B \-4
+nor
+.B \-6
+(the default),
 .I mping
-will try IPv4 instead.
+uses
+.B AF_UNSPEC
+and, if the resolver returns both IPv4 and IPv6 addresses, chooses the first IPv4 entry in the list. This often matches plain
+.B ping
+on dual\-stack names (for example
+.I .local
+mDNS hosts that advertise both A and AAAA records).
 
 .TP
 Timing options
