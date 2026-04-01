@@ -551,14 +551,7 @@ int main(int argc, char **argv)
                 int cc;
                 int smax;
                 
-                struct timeval timeout;
                 fd_set read_fdset;
-                
-                static const time_t SELECT_TIMEOUT_SECS = 0;
-                static const time_t SELECT_TIMEOUT_USECS = 10000;
-                
-                timeout.tv_sec = SELECT_TIMEOUT_SECS;
-                timeout.tv_usec = SELECT_TIMEOUT_USECS;
 
                 /* Initialize the select loop */
                 if (s < 0 && s6 < 0) {
@@ -588,42 +581,52 @@ int main(int argc, char **argv)
                 }
                 if (s >= 0) {
                         if (FD_ISSET(s, &read_fdset)) {
-				int ttl_cmsg = -1;
-				struct timeval kern_tv, *ktp = NULL;
+				for (;;) {
+					int ttl_cmsg = -1;
+					struct timeval kern_tv, *ktp = NULL;
 
-				fromlen = sizeof(from);
-				if ((cc = (int)recv_raw_icmp(s, 0, packet, (size_t)packlen, &from, &fromlen,
-							      &ttl_cmsg, &kern_tv)) < 0) {
-					if (errno != EINTR) {
+					fromlen = sizeof(from);
+					cc = (int)recv_raw_icmp(s, 0, packet, (size_t)packlen, &from,
+								&fromlen, &ttl_cmsg, &kern_tv);
+					if (cc < 0) {
+						if (errno == EINTR)
+							continue;
+						if (errno == EAGAIN || errno == EWOULDBLOCK)
+							break;
 						perror("mping: recvmsg");
 						(void)fflush(stderr);
+						break;
 					}
-					continue;
+					if ((options & F_KERNEL_STAMP))
+						ktp = &kern_tv;
+					if (cc > 0)
+						pr_pack(packet, cc, (struct sockaddr_in *)&from, ttl_cmsg, ktp);
 				}
-				if ((options & F_KERNEL_STAMP))
-					ktp = &kern_tv;
-				if (cc > 0)
-					pr_pack(packet, cc, (struct sockaddr_in *)&from, ttl_cmsg, ktp);
                         }
                 }
                 if (s6 >= 0) {
                         if (FD_ISSET(s6, &read_fdset)) {
-				int hops = -1;
-				struct timeval kern_tv, *ktp = NULL;
+				for (;;) {
+					int hops = -1;
+					struct timeval kern_tv, *ktp = NULL;
 
-				fromlen = sizeof(from);
-				if ((cc = (int)recv_raw_icmp(s6, 1, packet, (size_t)packlen, &from, &fromlen,
-							      &hops, &kern_tv)) < 0) {
-					if (errno != EINTR) {
+					fromlen = sizeof(from);
+					cc = (int)recv_raw_icmp(s6, 1, packet, (size_t)packlen, &from,
+								&fromlen, &hops, &kern_tv);
+					if (cc < 0) {
+						if (errno == EINTR)
+							continue;
+						if (errno == EAGAIN || errno == EWOULDBLOCK)
+							break;
 						perror("mping: recvmsg");
 						(void)fflush(stderr);
+						break;
 					}
-					continue;
+					if ((options & F_KERNEL_STAMP))
+						ktp = &kern_tv;
+					if (cc > 0)
+						pr_pack6(packet, cc, (struct sockaddr_in6 *)&from, hops, ktp);
 				}
-				if ((options & F_KERNEL_STAMP))
-					ktp = &kern_tv;
-				if (cc > 0)
-					pr_pack6(packet, cc, (struct sockaddr_in6 *)&from, hops, ktp);
                         }
                 }
 		
@@ -735,6 +738,21 @@ recv_raw_icmp(int fd, int is_v6, unsigned char *buf, size_t buflen,
 }
 
 static int
+set_nonblocking_socket(int fd)
+{
+	int fl;
+
+	if (fd < 0)
+		return 0;
+	fl = fcntl(fd, F_GETFL, 0);
+	if (fl == -1)
+		return -1;
+	if (fcntl(fd, F_SETFL, fl | O_NONBLOCK) == -1)
+		return -1;
+	return 0;
+}
+
+static int
 apply_addrinfo_to_slot(int slot, struct addrinfo *rai)
 {
 	int on = 1;
@@ -748,6 +766,10 @@ apply_addrinfo_to_slot(int slot, struct addrinfo *rai)
 			s6 = socket(rai->ai_family, rai->ai_socktype, IPPROTO_ICMPV6);
 			if (s6 < 0) {
 				perror("Mping");
+				return -1;
+			}
+			if (set_nonblocking_socket(s6) != 0) {
+				perror("Mping: O_NONBLOCK");
 				return -1;
 			}
 		}
@@ -780,6 +802,10 @@ apply_addrinfo_to_slot(int slot, struct addrinfo *rai)
 			s = socket(rai->ai_family, rai->ai_socktype, IPPROTO_ICMP);
 			if (s < 0) {
 				perror("Mping");
+				return -1;
+			}
+			if (set_nonblocking_socket(s) != 0) {
+				perror("Mping: O_NONBLOCK");
 				return -1;
 			}
 		}
@@ -919,20 +945,16 @@ prefire(int dummy)
 	else if (((struct sockaddr *) &whereto[dummy]) -> sa_family == AF_INET6) {
 
 		struct icmp6_hdr *icmph;
+		unsigned char *payload;
 
 		icmph = (struct icmp6_hdr *)outpack;
 		icmph->icmp6_type = ICMP6_ECHO_REQUEST;
-		icmph->icmp6_data32[1] = dummy;
-
-		if (timing) {
-			gettimeofday((struct timeval *)&icmph->icmp6_data32[1],
+		payload = (unsigned char *)icmph + 8;
+		*(int *)payload = dummy;
+		if (timing)
+			gettimeofday((struct timeval *)(payload + sizeof(int)),
 				     (struct timezone *)NULL);
-			icmph->icmp6_data32[3] = dummy;       
-		}
-		else {
-			icmph->icmp6_data32[1] = dummy;
-		}
-		
+
 		/* Should also fill in data, and we need to skip hnum value */
 		cc = datalen + 8;                   /* skips ICMP portion */
 		
@@ -1146,6 +1168,7 @@ pinger6(int hostnum)
         struct icmp6_hdr *icmph;
         register int cc;
         int i;
+        unsigned char *payload;
 
         icmph = (struct icmp6_hdr *)outpack;
         icmph->icmp6_type = ICMP6_ECHO_REQUEST;
@@ -1153,16 +1176,11 @@ pinger6(int hostnum)
         icmph->icmp6_cksum = 0;
         icmph->icmp6_seq = ntransmitted-1;
         icmph->icmp6_id = ident;
-        icmph->icmp6_data32[1] = hostnum;
-
-        if (timing) {
-                gettimeofday((struct timeval *)&icmph->icmp6_data32[1],
+        payload = (unsigned char *)icmph + 8;
+        *(int *)payload = hostnum;
+        if (timing)
+                gettimeofday((struct timeval *)(payload + sizeof(int)),
                              (struct timezone *)NULL);
-                icmph->icmp6_data32[3] = hostnum;       
-        }
-        else {
-                icmph->icmp6_data32[1] = hostnum;
-        }
 
         /* Should also fill in data, and we need to skip hnum value */
         cc = datalen + 8;                   /* skips ICMP portion */
@@ -1352,13 +1370,14 @@ pr_pack6(u_char *buf, int cc, struct sockaddr_in6 *from, int hops,
 			return;  /* This was not our ICMP ECHO reply */
 		}
 
-		if (cc < 8+4 || (timing && cc < (int)(8 + sizeof(struct timeval) + 4)) ) {
+		if (cc < 8 + (int)sizeof(int) ||
+		    (timing && cc < 8 + (int)sizeof(int) + (int)sizeof(struct timeval))) {
 			if (options & F_VERBOSE)
 				fprintf(stderr, "mping: packet too short (%d bytes)\n", cc);
 			return;
 		}
 
-		hnum = (int)icmph->icmp6_data32[timing ? 3 : 1];
+		hnum = *(int *)((unsigned char *)icmph + 8);
                 if (hnum < 0 || hnum >= nhosts) {
                         printf("hnum=%d, outside [0..%d)\n", hnum, nhosts);
                         return;
@@ -1369,12 +1388,12 @@ pr_pack6(u_char *buf, int cc, struct sockaddr_in6 *from, int hops,
 			active[hnum] = 0;
 		}
 		
-		if (timing && cc >= (int)(8 + sizeof(struct timeval))) {
+		if (timing && cc >= 8 + (int)sizeof(int) + (int)sizeof(struct timeval)) {
                         if (recv_kern_tv != NULL && (options & F_KERNEL_STAMP))
                                 tv = *recv_kern_tv;
                         else
                                 gettimeofday(&tv, NULL);
-                        tp = (struct timeval *)(icmph + 1);
+                        tp = (struct timeval *)((unsigned char *)icmph + 8 + sizeof(int));
 
                         tvsub(&tv, tp);
                         triptime = tv.tv_sec * 1000000 + tv.tv_usec;

@@ -68,6 +68,7 @@
 #include <sys/uio.h>
 #include <sys/poll.h>
 #include <sys/ioctl.h>
+#include <fcntl.h>
 
 #include <netinet/in_systm.h>
 #include <netinet/in.h>
