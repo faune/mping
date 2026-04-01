@@ -2,13 +2,13 @@
 
 All notable changes are documented here. This repository includes **Mping v3.00 rc1** (UNINETT, 2005) as the upstream baseline, plus a portability and hardening fork.
 
-The **verbatim Norwegian** release notes from UNINETT are still in the file **`Changelog`** in the repository root. The section below records the **same items in English** so one file is enough for most readers.
+The **UNINETT v3.0 rc1** release is summarized in English below. The **original Norwegian** wording from that release is kept **in this file** inside the collapsible block (archival copy; no separate upstream changelog file is required).
 
 ---
 
 ## Mping v3.0 rc1 — upstream release (UNINETT, ~2005)
 
-*Source: original `Changelog`.*
+*Source: UNINETT Mping v3.0 rc1 release notes (Norwegian original in the details block below).*
 
 ### Features and behaviour
 
@@ -29,7 +29,7 @@ The **verbatim Norwegian** release notes from UNINETT are still in the file **`C
 - **Man page** updated; sources stamped as **v3.0**.
 
 <details>
-<summary>Original Norwegian text (same as file <code>Changelog</code>)</summary>
+<summary>Original Norwegian text (UNINETT v3.0 rc1)</summary>
 
 ```
 Mping v3.0 rc1
@@ -122,5 +122,5 @@ Mping v3.0 rc1
 ### Upstream reference
 
 - Original copyright and license: **GPLv2+** (see **`mping.c`** / **`mping.h`**).
-- Original Norwegian **`Changelog`** file retained; its entries are summarized in English under **Mping v3.0 rc1 — upstream release** above.
+- Upstream **v3.0 rc1** history: English summary and Norwegian original text under **Mping v3.0 rc1 — upstream release** above.
 - Optional enhancements and historical behaviour notes are summarized in **`README.md`**.
