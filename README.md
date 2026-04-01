@@ -111,7 +111,7 @@ Ideas not implemented here; contributions welcome:
 | `mping.h` | Headers and constants |
 | `mping.8` | Manual page |
 | `Makefile` | Build and install |
-| `CHANGELOG.md` | All changes: upstream v3.0 rc1 summary (plus Norwegian original in a collapsible section) and this fork |
+| `CHANGELOG.md` | Changes in this tree versus the v3.0 rc1 baseline |
 
 ## License
 
